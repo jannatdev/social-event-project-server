@@ -27,6 +27,8 @@ async function run() {
    
    const db = client.db("social-event")
    const eventsCollection = db.collection("events")
+
+   
    const joiningCollection = db.collection("joining")
 
  app.post('/events',async(req,res)=>{
@@ -46,17 +48,27 @@ app.get('/events/creator/:email',async(req,res)=>{
 
     try{
         const email = req.params.email
-    const result = await eventsCollection.find({creatorEmail:email}).toArray()
-       res.status(200).send(result)
+       
+     const allEvents = await eventsCollection.find({}).toArray();
+
+    
+
+        
+    const result = await eventsCollection.find({createdByEmail:email}).toArray()
+  
+  
+      return res.status(200).send(result)
     }catch(error){
         console.error(error)
-    }
-    res.status(500).res({
+         return res.status(500).send({
         message:"Failed to fetch creator events"
+    })
+}
+      
     })
     
    
-})
+
 
 
 
@@ -100,7 +112,7 @@ app.get('/events/creator/:email',async(req,res)=>{
 app.post('/events/:id/join',async(req,res)=>{
     try{
         const {id}= req.params;
-        const {userId,userName,userEmail} = req.user;
+        const {userId,userName,userEmail} = req.body;
 
         if(!ObjectId.isValid(id)){
             return res.status(400).send({
@@ -109,7 +121,7 @@ app.post('/events/:id/join',async(req,res)=>{
 
    
     }
-     if(userId || userName || userEmail){
+     if(!userId || !userName || !userEmail){
         return res.status(401).send({
             message:"Join the Event"
         })
@@ -131,7 +143,7 @@ app.post('/events/:id/join',async(req,res)=>{
           thumbnail: event.thumbnailImageUrl,
           location: event.location,
 
-          userId: userId,
+          userId:userId,
           userName: userName,
           userEmail: userEmail,
 
@@ -149,19 +161,36 @@ app.post('/events/:id/join',async(req,res)=>{
     }catch(error){
         console.error("joined event error",error)
     }
-    res.status(500).send({
+       return res.status(500).send({
         message:"Failed to join event."
     })
-    setJoined(true);
+    
 }
 )
 
+app.get('/my-joined-events/:userId',async(req,res)=>{
 
+    try{
+        const {userId} =req.params
+        console.log("userid",userId)
+    const result= await joiningCollection.find({userId:userId}).toArray();
+     return res.status(200).send(result)
+
+    }catch(error){
+        console.error(error)
+      return res.status(500).send({
+            message:"Failed to get join Event!"
+        })
+    }
+    
+    
+
+})
 
 
 app.get('/', (req, res) => {
     console.log("Server is running Fine");
-    res.send("Server is running Fine!");
+     res.send("Server is running Fine!");
 });
 
 
