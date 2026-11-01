@@ -1,10 +1,12 @@
 import express from 'express';
-
-import { MongoClient } from 'mongodb';
+import cors from 'cors';
+import { MongoClient, ObjectId } from 'mongodb';
 import 'dotenv/config';
 
 const app = express();
 const PORT = 8000;
+
+app.use(cors())
 
 app.use(express.json());
 
@@ -25,6 +27,9 @@ async function run() {
    
    const db = client.db("social-event")
    const eventsCollection = db.collection("events")
+   const joiningCollection = db.collection("joining")
+
+ 
 
 
 app.get('/events/:email',async(req,res)=>{
@@ -39,6 +44,75 @@ app.post('/events',async(req,res)=>{
     res.send(result)
 }
 )
+
+app.get('/events/:id',async(req,res)=>{
+
+    try{
+        const {id}=req.params
+        console.log("Received ID:", id);
+    const result = await eventsCollection.findOne({_id:new ObjectId(id)});
+    console.log("MongoDB result:", result);
+
+    if (!result) {
+      return res.status(404).send({
+        message: "Event not found"
+      });
+
+    }
+    
+    res.status(200).send(result);
+}catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "Server error" });
+  }
+})
+
+app.post('/events/:id/join',async(req,res)=>{
+    try{
+        const {id}= req.params;
+        const user = req.user;
+
+        if(!ObjectId.isValid(id)){
+            return res.status(400).send({
+                message:"Invalid Id"
+            })
+        
+        
+    }
+    const event = await eventsCollection.findOne({_id:new ObjectId(id)})
+
+    if (!event){
+        return res.status(400).send({
+            message:"Event not Found"
+        })
+    }
+     const joiner = {
+      eventId: id,
+      eventTitle: event.title,
+      eventType: event.eventType,
+      eventDate: event.eventDate,
+      thumbnail: event.thumbnail,
+      location: event.location,
+
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+
+      joinedAt: new Date(),
+    };
+
+    const reult = await joiningCollection.insertOne(joiner)
+
+    }catch(error){
+        console.error("joined event error",error)
+    }
+    res.status(500).send({
+        message:"Failed to join event."
+    })
+    setJoined(true);
+}
+)
+
 
 app.get("/events", async (req, res) => {
       const result = await eventsCollection.find().toArray();
