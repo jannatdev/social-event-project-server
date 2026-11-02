@@ -31,6 +31,9 @@ async function run() {
    
    const joiningCollection = db.collection("joining")
 
+
+//  Events API
+
  app.post('/events',async(req,res)=>{
     const eventData = req.body
     const result = await eventsCollection.insertOne(eventData)
@@ -43,16 +46,12 @@ async function run() {
       res.send(result);
     });
 
-
+// Events API by email
 app.get('/events/creator/:email',async(req,res)=>{
 
     try{
         const email = req.params.email
        
-     const allEvents = await eventsCollection.find({}).toArray();
-
-    
-
         
     const result = await eventsCollection.find({createdByEmail:email}).toArray()
   
@@ -69,7 +68,7 @@ app.get('/events/creator/:email',async(req,res)=>{
     
    
 
-
+//Single Event API 
 
 
  app.get("/events/:id", async (req, res) => {
@@ -102,78 +101,59 @@ app.get('/events/creator/:email',async(req,res)=>{
       }
     });
 
-    
+    // Joining Events API
 
+  app.post('/events/join',async(req,res)=>{
 
-    
-
-    
-
-app.post('/events/:id/join',async(req,res)=>{
     try{
-        const {id}= req.params;
-        const {userId,userName,userEmail} = req.body;
+         const joiningData =req.body;
+       const exitJoining = await joiningCollection.findOne({
+         eventId: joiningData.eventId,
+      joinedUserEmail: joiningData.joinedUserEmail
+    })
 
-        if(!ObjectId.isValid(id)){
-            return res.status(400).send({
-                message:"Invalid Id"
-            })
-
-   
-    }
-     if(!userId || !userName || !userEmail){
-        return res.status(401).send({
-            message:"Join the Event"
-        })
-        
-        
-    }
-    const event = await eventsCollection.findOne({_id:new ObjectId(id)})
-
-    if (!event){
+    if(exitJoining){
         return res.status(400).send({
-            message:"Event not Found"
+            message:"This event is already booked"
         })
-    }
-     const joiner = {
-      eventId: id,
-          eventTitle: event.title,
-          eventType: event.eventType,
-          eventDate: event.eventDate,
-          thumbnail: event.thumbnailImageUrl,
-          location: event.location,
 
-          userId:userId,
-          userName: userName,
-          userEmail: userEmail,
-
-          joinedAt: new Date(),
-    };
-
-    const result = await joiningCollection.insertOne(joiner)
-
-    res.status(201).send({
-        success: true,
-          message: "Successfully joined the event",
-          insertedId: result.insertedId,
-    })
-
-    }catch(error){
-        console.error("joined event error",error)
-    }
-       return res.status(500).send({
-        message:"Failed to join event."
-    })
     
-}
-)
 
-app.get('/my-joined-events/:userId',async(req,res)=>{
+    }
+    const result =await joiningCollection.insertOne({
+        ...joiningData,
+        joinedAt: new Date()
+    })
+     return res.status(201).send({
+      success: true,
+      message: "Successfully joined the event",
+      insertedId: result.insertedId
+    });
+   
+
+
+    
+    }catch(error){
+        console.error(error)
+        return res.status(500).send({
+      message: "Failed to join event"
+    });
+    }
+
+    
+  }
+)  
+
+
+
+
+app.get('/events/joiningEvents/:email',async(req,res)=>{
 
     try{
-        const {userId} =req.params
-        console.log("userid",userId)
-    const result= await joiningCollection.find({userId:userId}).toArray();
+        const {email} =req.params
+        
+    const result= await joiningCollection.find({
+        joinedUserEmail:email}).sort({eventDate:1}).toArray();
      return res.status(200).send(result)
 
     }catch(error){
@@ -183,8 +163,6 @@ app.get('/my-joined-events/:userId',async(req,res)=>{
         })
     }
     
-    
-
 })
 
 
