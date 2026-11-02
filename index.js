@@ -71,13 +71,64 @@ app.get('/events/creator/:email',async(req,res)=>{
 
 
     app.patch('/events/:id', async(req,res)=>{
-        const {id}=req.params
-        const updateData = req.body
+          console.log("PATCH ROUTE HIT!");
+
+        try{
+            const {id}=req.params
+
+              console.log("1. Received Event ID:", id);
+    console.log("2. Received Request Body:", req.body);
+
+              if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid event ID",
+      });
+
+      
+    } 
+
+       const updateData = {
+      title: req.body.title,
+      description: req.body.description,
+      eventType: req.body.eventType,
+      thumbnailImageUrl: req.body.thumbnailImageUrl,
+      location: req.body.location,
+      eventDate: new Date(req.body.eventDate),
+      updatedAt: new Date(),
+    }
+
+    if (isNaN(updateData.eventDate.getTime())) {
+      return res.status(400).send({
+        message: "Invalid event date",
+      });
+
+     }
+        
         const result= await eventsCollection.updateOne(
           {_id:new ObjectId(id)},
           {$set:updateData},
         )
-        res.send(result)
+           
+
+            if (result.modifiedCount === 0) {
+      return res.status(200).send({
+        message: "No changes detected",
+        result,
+      });
+    }
+
+    res.status(200).send({
+      message: "Event updated successfully",
+      result,
+    });
+
+}catch (error) {
+    console.error("Update event error:", error);
+
+    res.status(500).send({
+      message: "Failed to update event",
+    });
+  }
     })
     
    
@@ -157,7 +208,15 @@ app.get('/events/creator/:email',async(req,res)=>{
     
   }
 )  
+ 
+// Delete API
 
+app.delete('/events/:id',async(req,res)=>{
+    const {id} =req.params;
+    const result = await eventsCollection.deleteOne({_id:new ObjectId(id)})
+    res.send(result)
+
+})
 
 
 
