@@ -71,15 +71,12 @@ app.get('/events/creator/:email',async(req,res)=>{
 
 
     app.patch('/events/:id', async(req,res)=>{
-          console.log("PATCH ROUTE HIT!");
-
+          
         try{
             const {id}=req.params
-
-              console.log("1. Received Event ID:", id);
-    console.log("2. Received Request Body:", req.body);
-
-              if (!ObjectId.isValid(id)) {
+          
+             
+     if (!ObjectId.isValid(id)) {
       return res.status(400).send({
         message: "Invalid event ID",
       });
@@ -107,6 +104,7 @@ app.get('/events/creator/:email',async(req,res)=>{
         const result= await eventsCollection.updateOne(
           {_id:new ObjectId(id)},
           {$set:updateData},
+           { returnDocument: "after" },
         )
            
 
@@ -237,6 +235,27 @@ app.get('/events/joiningEvents/:email',async(req,res)=>{
     }
     
 })
+
+// Upcoming 6 Events
+
+app.get('/Upcoming-events',async(req,res)=>{
+    try{
+        const currentDate = new Date()
+        const result = await eventsCollection.find(
+            {eventDate:{$gte:currentDate}}.sort({eventDate:1}).limit(6).toArray());
+            res.send(result)
+    } catch(error){
+        console.error(error)
+          return res.status(500).send({
+            message: "Failed to get upcoming events",
+            error: error.message
+        });
+  
+     
+        }
+    }
+
+)
 
 
 app.get('/', (req, res) => {
