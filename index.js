@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { MongoClient, ObjectId } from 'mongodb';
 import 'dotenv/config';
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const app = express();
 const PORT = 8000;
@@ -25,12 +26,54 @@ async function run() {
 
 
    
-   const db = client.db("social-event")
-   const eventsCollection = db.collection("events")
+        const db = client.db("social-event")
+        const eventsCollection = db.collection("events")
 
    
    const joiningCollection = db.collection("joining")
 
+  //  Verify token
+
+   const verifyToken=async(req,res,next)=>{
+    console.log("VERIFY TOKEN MIDDLEWARE RUNNING");
+    try{
+       const authHeader = req.headers.authorization;
+    console.log("Authorization Header:",authHeader);
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")){
+      return res.status(401).send({message:"unauthorized"})
+    }
+
+    const token = authHeader.split(" ")[1];
+    console.log("Received Token:", token);
+
+    if (!token){
+      return res.status(401).send({message:"Unauthorized"})
+    }
+
+    const JWK = createRemoteJWKSet(new URL('http://localhost:3000/api/auth/jwks'))
+    
+    
+    const {payload}= await jwtVerify(token,JWK)
+    req.user = payload
+
+     console.log("JWT Payload:", payload);
+    console.log("User Email:", payload.email);
+    console.log("User ID:", payload.sub);
+
+    console.log("User authenticated successfully");
+
+  
+
+    next()
+
+    }catch (error) {
+    return res.status(401).send({
+      message: "Invalid or expired token"
+    });
+  }
+  }
+   
 
 //  Events API
 
@@ -64,7 +107,7 @@ async function run() {
     });
 
 // Events API by email
-app.get('/events/creator/:email',async(req,res)=>{
+app.get('/events/creator/:email',verifyToken,async(req,res)=>{
 
     try{
         const email = req.params.email
@@ -239,6 +282,7 @@ app.get('/events/joiningEvents/:email',async(req,res)=>{
 
     try{
         const {email} =req.params
+       
         
     const result= await joiningCollection.find({
         joinedUserEmail:email}).sort({eventDate:1}).toArray();
