@@ -35,9 +35,26 @@ async function run() {
 //  Events API
 
  app.post('/events',async(req,res)=>{
+  try{
     const eventData = req.body
-    const result = await eventsCollection.insertOne(eventData)
+
+    const newEvent={
+      ...eventData,
+    
+      eventDate:new Date(eventData.eventDate)
+
+    }
+    const result = await eventsCollection.insertOne(newEvent)
     res.send(result)
+
+  }catch (error) {
+    console.error(error);
+    res.status(500).send({
+      message: "Failed to create event",
+      error: error.message
+    });
+  }
+    
 }
 )
 
@@ -241,8 +258,9 @@ app.get('/events/joiningEvents/:email',async(req,res)=>{
 app.get('/Upcoming-events',async(req,res)=>{
     try{
         const currentDate = new Date()
+        currentDate.setHours(0,0,0,0)
         const result = await eventsCollection.find(
-            {eventDate:{$gte:currentDate}}.sort({eventDate:1}).limit(6).toArray());
+            {eventDate:{$gte:currentDate}}).sort({eventDate:1}).limit(6).toArray();
             res.send(result)
     } catch(error){
         console.error(error)
