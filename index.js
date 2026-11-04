@@ -48,7 +48,7 @@ async function run() {
       return res.status(401).send({message:"Unauthorized"})
     }
 
-    const JWK = createRemoteJWKSet(new URL('http://localhost:3000/api/auth/jwks'))
+    const JWK = createRemoteJWKSet(new URL(`${process.env.BETTER_AUTH_URL}/api/auth/jwks`))
     
     
     const {payload}= await jwtVerify(token,JWK)
