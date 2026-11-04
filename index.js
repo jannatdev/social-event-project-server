@@ -21,31 +21,28 @@ const client = new MongoClient(process.env.MONGODB_CLIENT_URI);
 async function run() {
     try {
         await client.connect();
-        console.log("You successfully connected to MongoDB!");
-    
-
-
-   
-        const db = client.db("social-event")
+       
+         const db = client.db("social-event")
         const eventsCollection = db.collection("events")
 
    
    const joiningCollection = db.collection("joining")
+   
 
   //  Verify token
 
    const verifyToken=async(req,res,next)=>{
-    console.log("VERIFY TOKEN MIDDLEWARE RUNNING");
+    
     try{
        const authHeader = req.headers.authorization;
-    console.log("Authorization Header:",authHeader);
+    
 
     if (!authHeader || !authHeader.startsWith("Bearer ")){
       return res.status(401).send({message:"unauthorized"})
     }
 
     const token = authHeader.split(" ")[1];
-    console.log("Received Token:", token);
+   
 
     if (!token){
       return res.status(401).send({message:"Unauthorized"})
@@ -56,14 +53,6 @@ async function run() {
     
     const {payload}= await jwtVerify(token,JWK)
     req.user = payload
-
-     console.log("JWT Payload:", payload);
-    console.log("User Email:", payload.email);
-    console.log("User ID:", payload.sub);
-
-    console.log("User authenticated successfully");
-
-  
 
     next()
 
@@ -77,34 +66,9 @@ async function run() {
 
 //  Events API
 
- app.post('/events',async(req,res)=>{
-  try{
-    const eventData = req.body
+ 
 
-    const newEvent={
-      ...eventData,
-    
-      eventDate:new Date(eventData.eventDate)
 
-    }
-    const result = await eventsCollection.insertOne(newEvent)
-    res.send(result)
-
-  }catch (error) {
-    console.error(error);
-    res.status(500).send({
-      message: "Failed to create event",
-      error: error.message
-    });
-  }
-    
-}
-)
-
-  app.get("/events", async (req, res) => {
-      const result = await eventsCollection.find().toArray();
-      res.send(result);
-    });
 
 // Events API by email
 app.get('/events/creator/:email',verifyToken,async(req,res)=>{
@@ -188,6 +152,17 @@ app.get('/events/creator/:email',verifyToken,async(req,res)=>{
     });
   }
     })
+
+
+
+    // Delete API
+
+app.delete('/events/:id',async(req,res)=>{
+    const {id} =req.params;
+    const result = await eventsCollection.deleteOne({_id:new ObjectId(id)})
+    res.send(result)
+
+})
     
    
 
@@ -267,18 +242,11 @@ app.get('/events/creator/:email',verifyToken,async(req,res)=>{
   }
 )  
  
-// Delete API
-
-app.delete('/events/:id',async(req,res)=>{
-    const {id} =req.params;
-    const result = await eventsCollection.deleteOne({_id:new ObjectId(id)})
-    res.send(result)
-
-})
 
 
+// Joining API
 
-app.get('/events/joiningEvents/:email',async(req,res)=>{
+app.get('/events/joiningEvents/:email',verifyToken,async(req,res)=>{
 
     try{
         const {email} =req.params
@@ -318,6 +286,57 @@ app.get('/Upcoming-events',async(req,res)=>{
     }
 
 )
+
+
+
+// Eevents Post
+
+app.post('/events',async(req,res)=>{
+  try{
+    const eventData = req.body
+
+    const newEvent={
+      ...eventData,
+    
+      eventDate:new Date(eventData.eventDate)
+
+    }
+    const result = await eventsCollection.insertOne(newEvent)
+    res.send(result)
+
+  }catch (error) {
+    console.error(error);
+    res.status(500).send({
+      message: "Failed to create event",
+      error: error.message
+    });
+  }
+    
+}
+)
+
+// All Events API
+
+  app.get("/events", async (req, res) => {
+
+    try{
+       const currentDate = new Date()
+        currentDate.setHours(0,0,0,0)
+        const result = await eventsCollection.find(
+            {eventDate:{$gte:currentDate}}).sort({eventDate:1}).toArray();
+            res.send(result)
+
+    }catch(error){
+        console.error(error)
+          return res.status(500).send({
+            message: "Failed to get upcoming events",
+            error: error.message
+        });
+  
+     
+        }
+      
+    });
 
 
 app.get('/', (req, res) => {
