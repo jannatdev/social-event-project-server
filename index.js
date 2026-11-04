@@ -8,6 +8,7 @@ const app = express();
 const PORT = 8000;
 
 app.use(cors())
+  
 
 app.use(express.json());
 
@@ -21,8 +22,11 @@ const client = new MongoClient(process.env.MONGODB_CLIENT_URI);
 async function run() {
     try {
         await client.connect();
+         console.log("MongoDB Connected Successfully!");
        
          const db = client.db("social-event")
+          console.log("Database:", db.databaseName);
+
         const eventsCollection = db.collection("events")
 
    
@@ -48,6 +52,12 @@ async function run() {
       return res.status(401).send({message:"Unauthorized"})
     }
 
+     const authUrl = process.env.BETTER_AUTH_URL;
+
+    if (!authUrl) {
+      throw new Error("BETTER_AUTH_URL is missing");
+    }
+
     const JWK = createRemoteJWKSet(new URL(`${process.env.BETTER_AUTH_URL}/api/auth/jwks`))
     
     
@@ -57,6 +67,8 @@ async function run() {
     next()
 
     }catch (error) {
+       console.error("JWT Verification Error:", error.message);
+   
     return res.status(401).send({
       message: "Invalid or expired token"
     });
