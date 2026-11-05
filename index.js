@@ -23,88 +23,82 @@ export default app;
 
 
 
+const client = new MongoClient(process.env.MONGODB_CLIENT_URI, {
+  // Fail fast instead of the default 30s: on serverless this keeps requests
+  // from hanging until the platform kills the function.
+  serverSelectionTimeoutMS: 10000,
+});
 
-const client = new MongoClient(process.env.MONGODB_CLIENT_URI);
+const db = client.db("social-event")
+
+const eventsCollection = db.collection("events")
+
+const joiningCollection = db.collection("joining")
 
 
+//  Verify token
 
-async function run() {
-    try {
-        await client.connect();
-         console.log("MongoDB Connected Successfully!");
-       
-         const db = client.db("social-event")
-          console.log("Database:", db.databaseName);
-
-        const eventsCollection = db.collection("events")
-
-   
-   const joiningCollection = db.collection("joining")
-   
-
-  //  Verify token
-
-  // BETTER_AUTH_URL must be the app origin. It is used to build the JWKS URL
-  // (`${authUrl}/api/auth/jwks`), so a trailing slash or an accidentally
-  // appended path (e.g. ".../login") makes that request 404 and every token
-  // then fails verification with a 401.
-  const authUrl = (process.env.BETTER_AUTH_URL ?? "")
-    .replace(/\/+$/, "")
-    .replace(/\/login$/i, "");
+// BETTER_AUTH_URL must be the app origin. It is used to build the JWKS URL
+// (`${authUrl}/api/auth/jwks`), so a trailing slash or an accidentally
+// appended path (e.g. ".../login") makes that request 404 and every token
+// then fails verification with a 401.
+const authUrl = (process.env.BETTER_AUTH_URL ?? "")
+  .replace(/\/+$/, "")
+  .replace(/\/login$/i, "");
 
 if (!authUrl) {
-  throw new Error("BETTER_AUTH_URL is missing");
+  console.error("BETTER_AUTH_URL is missing - protected routes will return 500");
+}
+
+const JWKS = authUrl ? createRemoteJWKSet(
+  new URL(`${authUrl}/api/auth/jwks`)
+) : null;
+
+const verifyToken=async(req,res,next)=>{
+  
+    
+  try{
+    if (!JWKS) {
+      return res.status(500).send({message:"Auth is not configured on this server"})
+    }
+
+     const authHeader = req.headers.authorization;
+  
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")){
+    return res.status(401).send({message:"unauthorized"})
+  }
+
+  const token = authHeader.split(" ")[1];
+ 
+
+  if (!token){
+    return res.status(401).send({message:"Unauthorized"})
+  }
+
+   console.log("JWKS URL:", authUrl);
+
+  
+  
+     const { payload } = await jwtVerify(token, JWKS);
+     
+
+  req.user = payload
+
+  next()
+
+  }catch (error) {
+     console.error("JWT ERROR NAME:", error);
+ 
+   
+  return res.status(401).send({
+    message: "Invalid or expired token"
+  });
+}
 }
 
 
-const JWKS = createRemoteJWKSet(
-  new URL(`${authUrl}/api/auth/jwks`)
-);
-
-   const verifyToken=async(req,res,next)=>{
-      
-    
-    try{
-       const authHeader = req.headers.authorization;
-    
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")){
-      return res.status(401).send({message:"unauthorized"})
-    }
-
-    const token = authHeader.split(" ")[1];
-   
-
-    if (!token){
-      return res.status(401).send({message:"Unauthorized"})
-    }
-
-     console.log("JWKS URL:", process.env.BETTER_AUTH_URL);
-
-    
-    
-       const { payload } = await jwtVerify(token, JWKS);
-       
-
-    req.user = payload
-
-    next()
-
-    }catch (error) {
-       console.error("JWT ERROR NAME:", error);
- 
-   
-    return res.status(401).send({
-      message: "Invalid or expired token"
-    });
-  }
-  }
-   
-
-//  Events API
-
- 
-
+// Events API
 
 
 // Events API by email
@@ -277,7 +271,7 @@ app.delete('/events/:id',async(req,res)=>{
 
     
   }
-)  
+ )  
  
 
 // Joining API
@@ -290,7 +284,7 @@ app.get('/events/joiningEvents/:email',verifyToken,async(req,res)=>{
         
     const result= await joiningCollection.find({
         joinedUserEmail:email}).sort({eventDate:1}).toArray();
-        console.log("4. Joined events:", result.length);
+       
      return res.status(200).send(result)
 
     }catch(error){
@@ -382,13 +376,22 @@ app.get('/', (req, res) => {
 });
 
 
-app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
+// Routes above are registered at module load, so the API stays up even if
+// MongoDB is slow or unreachable. Connect in the background instead of
+// gating every route behind `await client.connect()`.
+client.connect()
+  .then(() => {
+    console.log("MongoDB Connected Successfully!");
+    console.log("Database:", db.databaseName);
+  })
+  .catch((error) => {
+    console.error("MongoDB connection failed:", error.message);
+  });
 
-  
-}catch (error){
-    console.error(error);
+
+// Vercel runs the exported `app` itself; only listen when running locally.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 }
-}
-run()
