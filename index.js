@@ -44,7 +44,13 @@ async function run() {
 
   //  Verify token
 
-  const authUrl = process.env.BETTER_AUTH_URL;
+  // BETTER_AUTH_URL must be the app origin. It is used to build the JWKS URL
+  // (`${authUrl}/api/auth/jwks`), so a trailing slash or an accidentally
+  // appended path (e.g. ".../login") makes that request 404 and every token
+  // then fails verification with a 401.
+  const authUrl = (process.env.BETTER_AUTH_URL ?? "")
+    .replace(/\/+$/, "")
+    .replace(/\/login$/i, "");
 
 if (!authUrl) {
   throw new Error("BETTER_AUTH_URL is missing");
