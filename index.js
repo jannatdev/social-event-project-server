@@ -38,10 +38,7 @@ const joiningCollection = db.collection("joining")
 
 //  Verify token
 
-// BETTER_AUTH_URL must be the app origin. It is used to build the JWKS URL
-// (`${authUrl}/api/auth/jwks`), so a trailing slash or an accidentally
-// appended path (e.g. ".../login") makes that request 404 and every token
-// then fails verification with a 401.
+
 const authUrl = (process.env.BETTER_AUTH_URL ?? "")
   .replace(/\/+$/, "")
   .replace(/\/login$/i, "");
@@ -83,13 +80,22 @@ const verifyToken=async(req,res,next)=>{
      const { payload } = await jwtVerify(token, JWKS);
      
 
-  req.user = payload
+  req.user = payload;
 
+ 
   next()
 
   }catch (error) {
-     console.error("JWT ERROR NAME:", error);
- 
+       console.error("JWT ERROR NAME:", error.code || error.name);
+    console.error("JWT ERROR MESSAGE:", error.message);;
+    if (
+      error.code?.startsWith("ERR_JWKS") ||
+      error.message?.includes("fetch failed")
+    ) {
+      return res.status(503).send({
+        message: "Unable to verify authentication. JWKS server unavailable.",
+      });
+    }
    
   return res.status(401).send({
     message: "Invalid or expired token"
@@ -304,6 +310,8 @@ app.get('/Upcoming-events',async(req,res)=>{
         currentDate.setHours(0,0,0,0)
         const result = await eventsCollection.find(
             {eventDate:{$gte:currentDate}}).sort({eventDate:1}).limit(6).toArray();
+
+            console.log("Upcoming events:", result.length);
             res.send(result)
     } catch(error){
         console.error(error)
@@ -314,9 +322,7 @@ app.get('/Upcoming-events',async(req,res)=>{
   
      
         }
-    }
-
-)
+    })
 
 
 
@@ -348,26 +354,32 @@ app.post('/events',async(req,res)=>{
 
 // All Events API
 
-  app.get("/events", async (req, res) => {
+ app.get("/events", async (req, res) => {
+  try {
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
 
-    try{
-       const currentDate = new Date()
-        currentDate.setHours(0,0,0,0)
-        const result = await eventsCollection.find(
-            {eventDate:{$gte:currentDate}}).sort({eventDate:1}).toArray();
-            res.send(result)
-
-    }catch(error){
-        console.error(error)
-          return res.status(500).send({
-            message: "Failed to get upcoming events",
-            error: error.message
-        });
-  
-     
+    const result = await eventsCollection
+      .find({
+        eventDate: {
+          $gte: currentDate
         }
-      
+      })
+      .sort({ eventDate: 1 })
+      .toArray();
+       
+
+    res.send(result);
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to get upcoming events",
+      error: error.message
     });
+  }
+});
 
 
 app.get('/', (req, res) => {
@@ -376,9 +388,7 @@ app.get('/', (req, res) => {
 });
 
 
-// Routes above are registered at module load, so the API stays up even if
-// MongoDB is slow or unreachable. Connect in the background instead of
-// gating every route behind `await client.connect()`.
+
 client.connect()
   .then(() => {
     console.log("MongoDB Connected Successfully!");
