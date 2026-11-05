@@ -4,6 +4,7 @@ import { MongoClient, ObjectId } from 'mongodb';
 import 'dotenv/config';
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
+
 const app = express();
 const PORT = 8000;
 
@@ -11,6 +12,14 @@ app.use(cors())
   
 
 app.use(express.json());
+
+app.get("/test", (req, res) => {
+  console.log("TEST ROUTE WORKING!");
+
+  res.send("Express server is working");
+});
+export default app;
+
 
 
 
@@ -35,7 +44,19 @@ async function run() {
 
   //  Verify token
 
+  const authUrl = process.env.BETTER_AUTH_URL;
+
+if (!authUrl) {
+  throw new Error("BETTER_AUTH_URL is missing");
+}
+
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${authUrl}/api/auth/jwks`)
+);
+
    const verifyToken=async(req,res,next)=>{
+      
     
     try{
        const authHeader = req.headers.authorization;
@@ -52,22 +73,20 @@ async function run() {
       return res.status(401).send({message:"Unauthorized"})
     }
 
-     const authUrl = process.env.BETTER_AUTH_URL;
+     console.log("JWKS URL:", process.env.BETTER_AUTH_URL);
 
-    if (!authUrl) {
-      throw new Error("BETTER_AUTH_URL is missing");
-    }
-
-    const JWK = createRemoteJWKSet(new URL(`${process.env.BETTER_AUTH_URL}/api/auth/jwks`))
     
     
-    const {payload}= await jwtVerify(token,JWK)
+       const { payload } = await jwtVerify(token, JWKS);
+       
+
     req.user = payload
 
     next()
 
     }catch (error) {
-       console.error("JWT Verification Error:", error.message);
+       console.error("JWT ERROR NAME:", error);
+ 
    
     return res.status(401).send({
       message: "Invalid or expired token"
@@ -255,7 +274,6 @@ app.delete('/events/:id',async(req,res)=>{
 )  
  
 
-
 // Joining API
 
 app.get('/events/joiningEvents/:email',verifyToken,async(req,res)=>{
@@ -266,6 +284,7 @@ app.get('/events/joiningEvents/:email',verifyToken,async(req,res)=>{
         
     const result= await joiningCollection.find({
         joinedUserEmail:email}).sort({eventDate:1}).toArray();
+        console.log("4. Joined events:", result.length);
      return res.status(200).send(result)
 
     }catch(error){
